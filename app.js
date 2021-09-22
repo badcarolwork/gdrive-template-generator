@@ -3,7 +3,7 @@ var app = express();
 
 const { google } = require("googleapis");
 
-const keys = require("./drive-api-auth.json");
+const keys = require("./drive-key.json");
 
 const path = require("path");
 const fs = require("fs");
@@ -99,8 +99,8 @@ const copyFiles = async (fileID, fileName) => {
 };
 
 const moveCopiedFilestoNewFolder = () => {
-  fileId = "1sTWaJ_j7PkjzaBWtNc3IzovK5hQf21FbOw9yLeeLPNQ";
-  folderId = "0BwwA4oUTeiV1TGRPeTVjaWRDY1E";
+  const fileId = "1sTWaJ_j7PkjzaBWtNc3IzovK5hQf21FbOw9yLeeLPNQ";
+  const folderId = "0BwwA4oUTeiV1TGRPeTVjaWRDY1E";
   // Retrieve the existing parents to remove
   drive.files.get(
     {
