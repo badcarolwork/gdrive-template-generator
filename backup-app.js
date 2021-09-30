@@ -1,17 +1,28 @@
 const express = require("express");
 var app = express();
 
-// const { google } = require("googleapis");
-const { drive } = require("./gAuth");
+const { google } = require("googleapis");
+const keys = require("./drive-key.json");
 
+const path = require("path");
 const fs = require("fs");
 const async = require("async");
 
-const { listFile } = require("./components/getListComponent");
+const jwToken = new google.auth.JWT(
+  keys.client_email,
+  null,
+  keys.private_key,
+  ["https://www.googleapis.com/auth/drive"],
+  null
+);
+
 /// global setting ////
 
-let topParentFolderId = "1PyNq5_KrhH9muhS5xnDwfkki-xY_EqNf"; // DO NOT CHANGE: folder ID generator folder on g drive
-let mainTemplateFolderVIB320480 = "1uFcMQCtbOg02wnn5IibmMWxDfcBjNXQZ"; // folder ID of the template
+let topParentFolderId = "1PyNq5_KrhH9muhS5xnDwfkki-xY_EqNf";
+let mainTemplateFolderVIB320480 = "1uFcMQCtbOg02wnn5IibmMWxDfcBjNXQZ";
+let totalFilesinMainTemplate = 0;
+let copiedFiles = 0;
+// for image upload data from Frontend
 
 /// END of global setting ////
 
@@ -26,6 +37,17 @@ let mainTemplateFolderVIB320480 = "1uFcMQCtbOg02wnn5IibmMWxDfcBjNXQZ"; // folder
 // 7.downloadNewFolder (shre folder and generate link)
 
 /////********** END **********////////
+
+jwToken.authorize((authErr) => {
+  if (authErr) {
+    console.log("can't get anything_ " + authErr);
+    return;
+  } else {
+    console.log("authoriation ok");
+  }
+});
+
+const drive = google.drive({ version: "v3", auth: jwToken });
 
 /***********  need a create folder function ************/
 const createNewfolder = () => {
@@ -85,39 +107,37 @@ const getFilesList = (newFolderID) => {
   const parents = mainTemplateFolderVIB320480;
   const promises = [];
 
-  listFile(parents, callback);
+  drive.files.list(
+    {
+      q: "'" + parents + "' in parents and trashed=false",
+      fields: "files(id, name)",
+    },
+    (err, { data }) => {
+      if (err) return console.log("The API returned an error: " + err);
 
-  // drive.files.list(
-  //   {
-  //     q: "'" + parents + "' in parents and trashed=false",
-  //     fields: "files(id, name)",
-  //   },
-  //   (err, { data }) => {
-  //     if (err) return console.log("The API returned an error: " + err);
+      const files = data.files;
 
-  //     const files = data.files;
+      if (files.length) {
+        for (const file of files) {
+          promises.push(duplicateFiles(file.id, file.name));
+        }
+      } else {
+        console.log("no file to copy");
+      }
 
-  //     if (files.length) {
-  //       for (const file of files) {
-  //         promises.push(duplicateFiles(file.id, file.name));
-  //       }
-  //     } else {
-  //       console.log("no file to copy");
-  //     }
+      Promise.all(promises)
+        .then((results) => {
+          console.log("All done", results);
 
-  //     Promise.all(promises)
-  //       .then((results) => {
-  //         console.log("All done", results);
-
-  //         setTimeout(() => {
-  //           moveCopiedFilestoNewFolder(newFolderID);
-  //         }, 2000);
-  //       })
-  //       .catch((e) => {
-  //         console.log("Catch error: ", results);
-  //       });
-  //   }
-  // );
+          setTimeout(() => {
+            moveCopiedFilestoNewFolder(newFolderID);
+          }, 2000);
+        })
+        .catch((e) => {
+          console.log("Catch error: ", results);
+        });
+    }
+  );
 };
 
 const duplicateFiles = (mainTemplateFilesID, mainTemplatefilesName) => {
@@ -303,6 +323,6 @@ const setPermissionGetDownloadLink = async (getDownloadFolderId) => {
     });
 };
 
-getFilesList();
+setPermissionGetDownloadLink();
 
 // app.set('view engine', 'ejs')
