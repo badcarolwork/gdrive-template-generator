@@ -83,61 +83,51 @@ const uploadImages = (newImageFolder) => {
 };
 const getFilesList = (newFolderID) => {
   const parents = mainTemplateFolderVIB320480;
-  const promises = [];
+  const copyfilePromises = [];
 
-  listFile(parents, callback);
-
-  // drive.files.list(
-  //   {
-  //     q: "'" + parents + "' in parents and trashed=false",
-  //     fields: "files(id, name)",
-  //   },
-  //   (err, { data }) => {
-  //     if (err) return console.log("The API returned an error: " + err);
-
-  //     const files = data.files;
-
-  //     if (files.length) {
-  //       for (const file of files) {
-  //         promises.push(duplicateFiles(file.id, file.name));
-  //       }
-  //     } else {
-  //       console.log("no file to copy");
-  //     }
-
-  //     Promise.all(promises)
-  //       .then((results) => {
-  //         console.log("All done", results);
-
-  //         setTimeout(() => {
-  //           moveCopiedFilestoNewFolder(newFolderID);
-  //         }, 2000);
-  //       })
-  //       .catch((e) => {
-  //         console.log("Catch error: ", results);
-  //       });
-  //   }
-  // );
+  listFile(parents, (x) => {
+    if (x.length) {
+      for (const file of x) {
+        copyfilePromises.push(duplicateFiles(file.id, file.name));
+      }
+      Promise.all(copyfilePromises)
+        .then((results) => {
+          // console.log("All done", results);
+          // do move file here
+        })
+        .catch((results) => {
+          console.log("Catch error: ", results);
+        });
+    } else {
+      res.send({
+        status: 404,
+        message: "No files to copy.",
+      });
+    }
+  });
 };
 
-const duplicateFiles = (mainTemplateFilesID, mainTemplatefilesName) => {
-  // console.log("Error: move files failed due to no duplicated files found.")
-  return new Promise((resolve) => {
+const duplicateFiles = (mainFilesID, mainfilesName) => {
+  return new Promise((resolve, reject) => {
     setTimeout(() => {
       drive.files.copy(
         {
-          fileId: mainTemplateFilesID,
-          resource: { name: "copy_" + mainTemplatefilesName },
+          fileId: mainFilesID,
+          resource: { name: "copy_" + mainfilesName },
         },
         (err, data) => {
           if (err) {
             console.log(err);
+            res.send({
+              status: 500,
+              message: "Failed to copy files",
+            });
+            reject("Failed to copy files");
             // res.send("error");
             return;
           } else {
-            // console.log("Resolving: " + mainTemplateFilesID);
-            resolve("duplicate file step: " + mainTemplatefilesName);
             console.log("One file is copied: " + data);
+            resolve("duplicate file step: " + mainfilesName);
           }
         }
       );
@@ -151,72 +141,25 @@ const moveCopiedFilestoNewFolder = (copyToFolderID) => {
   // return;
   let fileIdtoCopy = [];
 
-  drive.files.list(
-    {
-      q: "'" + mainTemplateFolderVIB320480 + "' in parents and trashed=false",
-      fields: "files(id, name)",
-    },
-    (err, { data }) => {
-      if (err) return console.log("The MOVE API returned an error: " + err);
-
-      return new Promise((resolve, reject) => {
-        if (data.files.length) {
-          for (const file of data.files) {
-            if (file.name.indexOf("copy_") > -1) {
-              fileIdtoCopy.push(file.id);
-              resolve("SUCCESS: move file step 1");
-            }
-          }
-        } else {
-          reject("FAILED: move file step");
-        }
-      }).then(() => {
-        if (fileIdtoCopy.length) {
-          for (const idCopy of fileIdtoCopy) {
-            drive.files.get(
-              {
-                fileId: idCopy,
-                fields: "parents",
-              },
-              function (err, file) {
-                if (err) {
-                  // Handle error
-                  console.error(err);
-                } else {
-                  let previousParents = file.data.parents.join(",");
-
-                  setTimeout(() => {
-                    drive.files.update(
-                      {
-                        fileId: idCopy,
-                        addParents: folderId,
-                        removeParents: previousParents,
-                        fields: "id, parents",
-                      },
-                      function (err, file) {
-                        if (err) {
-                          console.log("Move file error: " + err);
-                          return;
-                        } else {
-                          console.log(
-                            "One file moved successfully: " + file.data.id
-                          );
-
-                          setTimeout(() => {
-                            renameFileinNewFolder(folderId);
-                          }, 1000);
-                        }
-                      }
-                    );
-                  }, 1000);
-                }
-              }
-            );
+  listFile(mainTemplateFolderVIB320480, (x) => {
+    return new Promise((resolve, reject) => {
+      if (x.length) {
+        for (const file of data.files) {
+          if (file.name.indexOf("copy_") > -1) {
+            resolve("SUCCESS move file:", file.id);
+            fileIdtoCopy.push(file.id);
+          } else {
+            reject("Move copied file failed.", file.id);
           }
         }
-      });
-    }
-  );
+      } else {
+        res.send({
+          status: 404,
+          message: "No files to move.",
+        });
+      }
+    });
+  });
 };
 
 const renameFileinNewFolder = (checkNewFolder) => {

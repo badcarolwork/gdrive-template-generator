@@ -1,9 +1,9 @@
 const { drive } = require("../gAuth");
 
-const listFile = (param1, res, callback) => {
+const listFile = (parentID, callback) => {
   drive.files.list(
     {
-      q: "'" + param1 + "' in parents and trashed=false",
+      q: "'" + parentID + "' in parents and trashed=false",
       fields: "files(id, name)",
     },
     (err, { data }) => {
@@ -15,7 +15,8 @@ const listFile = (param1, res, callback) => {
       }
 
       if (data.files) {
-        console.log(data.files);
+        let x = data.files;
+        callback(x);
       } else {
         res.send({
           status: 404,
