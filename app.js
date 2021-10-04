@@ -11,7 +11,7 @@ const { listFile } = require("./components/getListComponent");
 /// global setting ////
 
 let topParentFolderId = "1PyNq5_KrhH9muhS5xnDwfkki-xY_EqNf"; // DO NOT CHANGE: folder ID generator folder on g drive
-let mainTemplateFolderVIB320480 = "1uFcMQCtbOg02wnn5IibmMWxDfcBjNXQZ"; // folder ID of the template
+let mainTemplateFolder = "1uFcMQCtbOg02wnn5IibmMWxDfcBjNXQZ"; // folder ID of the template. EG VIB 320480
 
 /// END of global setting ////
 
@@ -28,7 +28,7 @@ let mainTemplateFolderVIB320480 = "1uFcMQCtbOg02wnn5IibmMWxDfcBjNXQZ"; // folder
 /////********** END **********////////
 
 /***********  need a create folder function ************/
-const createNewfolder = () => {
+const createNewfolder = (res) => {
   const newFolderName = "vib_" + Math.random().toString(36).substr(2, 9);
 
   var fileMetadata = {
@@ -46,10 +46,18 @@ const createNewfolder = () => {
       if (err) {
         // Handle error
         console.error(err);
+        // res.send({
+        //   status: 500,
+        //   message: "New folder creation failed.",
+        // });
       } else {
         // console.log(file.data.id); // new folder ID
         console.log("new folder is created");
         getFilesList(file.data.id);
+        // res.send({
+        //   status: 200,
+        //   message: "New folder created",
+        // });
       }
     }
   );
@@ -82,7 +90,7 @@ const uploadImages = (newImageFolder) => {
   );
 };
 const getFilesList = (newFolderID) => {
-  const parents = mainTemplateFolderVIB320480;
+  const parents = mainTemplateFolder;
   const copyfilePromises = [];
 
   listFile(parents, (x) => {
@@ -93,7 +101,8 @@ const getFilesList = (newFolderID) => {
       Promise.all(copyfilePromises)
         .then((results) => {
           // console.log("All done", results);
-          // do move file here
+          // do check copied file here
+          checkFileToMove(newFolderID);
         })
         .catch((results) => {
           console.log("Catch error: ", results);
@@ -135,31 +144,92 @@ const duplicateFiles = (mainFilesID, mainfilesName) => {
   });
 };
 
-const moveCopiedFilestoNewFolder = (copyToFolderID) => {
-  const folderId = copyToFolderID; // new folder ID
-  // console.log(folderId);
-  // return;
+const checkFileToMove = (copyToFolderID) => {
   let fileIdtoCopy = [];
 
-  listFile(mainTemplateFolderVIB320480, (x) => {
-    return new Promise((resolve, reject) => {
-      if (x.length) {
-        for (const file of data.files) {
+  listFile(mainTemplateFolder, (x) => {
+    if (x.length) {
+      new Promise((resolve, reject) => {
+        for (const file of x) {
           if (file.name.indexOf("copy_") > -1) {
-            resolve("SUCCESS move file:", file.id);
-            fileIdtoCopy.push(file.id);
+            fileIdtoCopy.push(file.id); // check how many file need to be moved
+            resolve("checked file:", file.id);
           } else {
-            reject("Move copied file failed.", file.id);
+            reject("No copied file found.");
           }
         }
-      } else {
-        res.send({
-          status: 404,
-          message: "No files to move.",
+      });
+
+      Promise.all(fileIdtoCopy)
+        .then((results) => {
+          console.log("All done", results);
+          // do move file here
+          setTimeout(() => {
+            moveCopiedFilestoNewFolder(copyToFolderID, fileIdtoCopy);
+          }, 2000);
+        })
+        .catch((results) => {
+          console.log("Catch error: ", results);
         });
-      }
-    });
+    } else {
+      res.send({
+        status: 404,
+        message: "No files to move.",
+      });
+    }
   });
+};
+
+const moveCopiedFilestoNewFolder = (folderid, filesID) => {
+  let movedFileId = [];
+
+  if (filesID.length) {
+    // console.log(filesID);
+    for (const idCopy of filesID) {
+      drive.files.get(
+        {
+          fileId: idCopy,
+          fields: "parents",
+        },
+        function (err, file) {
+          if (err) {
+            // Handle error
+            console.error(err);
+          } else {
+            let previousParents = file.data.parents.join(",");
+
+            drive.files.update(
+              {
+                fileId: idCopy,
+                addParents: folderid,
+                removeParents: previousParents,
+                fields: "id, parents",
+              },
+              function (err, file) {
+                new Promise((resolve, reject) => {
+                  if (err) {
+                    reject("Move file error: " + err);
+                  } else {
+                    movedFileId.push(file.data.id);
+                    resolve("One file moved successfully: " + file.data.id);
+                  }
+                });
+                Promise.all(movedFileId)
+                  .then((results) => {
+                    console.log("Moved done", results);
+                    // do rename file here
+                    // renameFileinNewFolder(folderid);
+                  })
+                  .catch((results) => {
+                    console.log("Catch error: ", results);
+                  });
+              }
+            );
+          }
+        }
+      );
+    }
+  }
 };
 
 const renameFileinNewFolder = (checkNewFolder) => {
@@ -246,6 +316,6 @@ const setPermissionGetDownloadLink = async (getDownloadFolderId) => {
     });
 };
 
-getFilesList();
+createNewfolder();
 
 // app.set('view engine', 'ejs')
